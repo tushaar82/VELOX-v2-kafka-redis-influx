@@ -66,7 +66,33 @@ services:
       - "9092:9092"
     restart: unless-stopped
 
+  # Grafana for dashboards and visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: velox-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=velox123
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource,grafana-piechart-panel
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/velox-main.json
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      - influxdb
+      - redis
+    restart: unless-stopped
+
 volumes:
   redis-data:
   influxdb-data:
   influxdb-config:
+  grafana-data:
