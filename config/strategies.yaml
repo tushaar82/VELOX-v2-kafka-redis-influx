@@ -1,0 +1,97 @@
+strategies:
+  - id: supertrend_simple
+    class: SupertrendStrategy
+    enabled: true
+    symbols:
+      - ABB
+      - ADANIENT
+      - AMBER
+      - BANKINDIA
+      - BATAINDIA
+    params:
+      atr_period: 10              # Supertrend ATR period
+      atr_multiplier: 3           # Supertrend multiplier
+      min_hold_time_minutes: 5    # Minimum 5 minutes hold
+      min_volume: 50              # Minimum volume filter
+      position_size_pct: 0.1      # 10% of capital per trade
+    trailing_sl:
+      type: atr
+      atr_multiplier: 2.5         # Trailing stop (optional, Supertrend handles exits)
+      atr_period: 10
+  
+  - id: mtf_atr
+    class: MultiTimeframeATRStrategy
+    enabled: false
+    symbols:
+      - ADANIENT
+      - BANKINDIA
+      - ABB
+      - BATAINDIA
+      - AMBER
+    params:
+      fast_ema: 9
+      slow_ema: 21
+      trend_ema: 50
+      atr_period: 14
+      atr_multiplier: 2.0
+      risk_reward_ratio: 3.0
+      rsi_period: 14
+      rsi_min: 30
+      rsi_max: 70
+      volume_period: 20
+      min_volume_multiplier: 1.0
+      position_size_pct: 0.02
+    trailing_sl:
+      type: atr
+      atr_multiplier: 2.0
+      atr_period: 14
+  
+  - id: scalping_pro
+    class: ScalpingMTFATRStrategy
+    enabled: false
+    symbols:
+      - ABB
+      - BATAINDIA
+      - ADANIENT
+      - BANKINDIA
+      - AMBER
+    params:
+      # EMA settings
+      ema9: 9              # Fast EMA on 5-min
+      ema21: 21            # Slow EMA on 5-min
+      ema50_15m: 50        # Trend EMA on 15-min
+      ema200_1h: 200       # Long-term trend on 1-hour
+      
+      # ATR settings
+      atr_period: 14
+      atr_sl_mult: 2.5     # Stop loss: 2.5 ATR
+      atr_tp1_mult: 2.0    # TP1: 2 ATR
+      atr_tp2_mult: 3.0    # TP2: 3 ATR
+      atr_trail_mult: 2.0  # Trailing: 2 ATR
+      
+      # RSI settings
+      rsi_period: 14
+      rsi_long_min: 40     # LONG: 40-70
+      rsi_long_max: 70
+      rsi_short_min: 30    # SHORT: 30-60
+      rsi_short_max: 60
+      
+      # Volume and entry
+      volume_period: 20
+      price_ema_dist: 0.2  # Price within 0.2 ATR of EMA9
+      
+      # Risk management
+      risk_per_trade: 0.01      # 1% risk per trade
+      max_positions: 2          # Max 2 concurrent positions
+      daily_loss_limit: 0.025   # 2.5% daily loss limit
+      max_consec_losses: 3      # Stop after 3 consecutive losses
+      
+      # Profit management
+      breakeven_atr: 1.0        # Move to BE at 1 ATR profit
+      trailing_start_atr: 1.5   # Start trailing at 1.5 ATR profit
+      tp1_pct: 0.5              # Close 50% at TP1
+      tp2_pct: 0.3              # Close 30% at TP2
+    trailing_sl:
+      type: atr
+      atr_multiplier: 2.0
+      atr_period: 14

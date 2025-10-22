@@ -1,0 +1,23 @@
+watchlist:
+  - ANANDRATHI
+  - ABB
+  - BATAINDIA
+  - ANGELONE
+  - AMBER
+  - BANKINDIA
+  - ADANIENT
+
+# Symbol-specific configuration
+symbol_config:
+  ANANDRATHI:
+    min_volume: 100
+    max_spread_pct: 0.001
+  ABB:
+    min_volume: 100
+    max_spread_pct: 0.001
+  BATAINDIA:
+    min_volume: 100
+    max_spread_pct: 0.001
+  ANGELONE:
+    min_volume: 100
+    max_spread_pct: 0.001

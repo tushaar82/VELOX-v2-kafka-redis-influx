@@ -1,0 +1,63 @@
+system:
+  broker:
+    type: simulated  # simulated | zerodha | upstox
+    capital: 100000
+    slippage_pct: 0.001
+  
+  risk:
+    max_position_size: 10000
+    max_positions_per_strategy: 3
+    max_total_positions: 5
+    max_daily_loss: 5000
+    max_daily_loss_pct: 0.05
+  
+  kafka:
+    bootstrap_servers: localhost:9092
+    consumer_group: velox-consumer
+    topics:
+      market_ticks: market.ticks
+      signals: signals
+      orders: orders
+      order_fills: order_fills
+      positions: positions
+  
+  logging:
+    level: INFO  # DEBUG | INFO | WARNING | ERROR
+    log_dir: logs
+    file_retention_days: 30
+  
+  simulation:
+    default_speed: 100.0
+    ticks_per_candle: 10
+  
+  dashboard:
+    host: 0.0.0.0
+    port: 5000
+    update_interval_ms: 1000
+
+# Warmup Configuration
+warmup:
+  enabled: true
+  min_candles: 200  # Minimum candles to load
+  auto_calculate: true  # Auto-calculate from strategies
+
+# Candle Aggregation Configuration
+candle_aggregation:
+  enabled: true
+  default_timeframe: '1min'
+  supported_timeframes:
+    - '1min'
+    - '3min'
+    - '5min'
+    - '15min'
+  max_history: 500  # Max candles to keep per timeframe
+
+# Database Logging Configuration
+database_logging:
+  log_all_signals: true  # Log approved and rejected signals
+  log_all_ticks: false  # Warning: Can be expensive
+  log_indicators: true  # Log indicator values
+  log_candles: true  # Log completed candles
+  position_snapshot_interval: 100  # Log position every N ticks
+  indicator_snapshot_interval: 50  # Log indicators every N ticks
+  batch_size: 50  # Batch size for bulk operations

@@ -1,0 +1,39 @@
+╔══════════════════════════════════════════════════════════════╗
+║           VELOX TRADING SYSTEM - QUICK USAGE                 ║
+╚══════════════════════════════════════════════════════════════╝
+
+🚀 START VELOX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ./start_velox.sh                    # Start with defaults
+  ./start_velox.sh --date 2020-09-16  # Custom date
+  ./start_velox.sh --port 5001        # Custom port
+  ./start_velox.sh --test             # Run tests first
+
+📊 CHECK STATUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ./status_velox.sh                   # Check all services
+
+🛑 STOP VELOX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ./stop_velox.sh                     # Stop everything
+
+🧪 RUN TESTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ./run_all_tests.sh                  # Run all 45 tests
+
+🌐 ACCESS DASHBOARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  http://localhost:5000               # Default URL
+
+📚 MORE INFO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  cat README_QUICKSTART.md            # Quick start guide
+  cat SCRIPTS_GUIDE.md                # All scripts explained
+  cat COMPLETE_SETUP.md               # System overview
+
