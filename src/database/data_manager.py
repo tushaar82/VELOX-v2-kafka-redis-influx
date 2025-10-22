@@ -259,8 +259,124 @@ class DataManager:
             current_sl, highest_price, sl_type
         )
     
+    # ==================== Signal Logging (NEW - for trade verification) ====================
+
+    def log_signal(self, strategy_id: str, symbol: str, action: str,
+                  price: float, quantity: int, reason: str,
+                  approved: bool, rejection_reason: str = None,
+                  indicators: dict = None, timestamp: datetime = None):
+        """
+        Log trading signal (approved or rejected) for verification.
+
+        Args:
+            strategy_id: Strategy identifier
+            symbol: Symbol name
+            action: Signal action (BUY/SELL)
+            price: Signal price
+            quantity: Signal quantity
+            reason: Signal generation reason
+            approved: Whether signal was approved
+            rejection_reason: Reason for rejection (if rejected)
+            indicators: Dict of indicator values at signal time
+            timestamp: Signal timestamp
+        """
+        status = 'approved' if approved else 'rejected'
+
+        # InfluxDB: Write signal with all details
+        self.influx.write_signal(
+            strategy_id=strategy_id,
+            symbol=symbol,
+            action=action,
+            price=price,
+            quantity=quantity,
+            reason=reason,
+            status=status,
+            rejection_reason=rejection_reason,
+            indicators=indicators,
+            timestamp=timestamp
+        )
+
+        log.debug(f"Signal logged: {strategy_id} {symbol} {action} @ {price} - {status}")
+
+    def log_order_execution(self, strategy_id: str, symbol: str, action: str,
+                           order_id: str, requested_price: float,
+                           filled_price: float, timestamp: datetime = None):
+        """
+        Log order execution details for quality analysis.
+
+        Args:
+            strategy_id: Strategy identifier
+            symbol: Symbol name
+            action: Order action (BUY/SELL)
+            order_id: Order identifier
+            requested_price: Requested execution price
+            filled_price: Actual filled price
+            timestamp: Execution timestamp
+        """
+        # Calculate slippage
+        slippage = abs(filled_price - requested_price)
+        slippage_pct = slippage / requested_price if requested_price > 0 else 0
+
+        # InfluxDB: Write execution details
+        self.influx.write_order_execution(
+            strategy_id=strategy_id,
+            symbol=symbol,
+            action=action,
+            order_id=order_id,
+            requested_price=requested_price,
+            filled_price=filled_price,
+            slippage=slippage,
+            slippage_pct=slippage_pct,
+            timestamp=timestamp
+        )
+
+        log.debug(f"Order execution logged: {order_id} - Slippage: {slippage_pct:.4%}")
+
+    def log_trade_complete(self, trade_id: str, strategy_id: str, symbol: str,
+                          entry_price: float, exit_price: float, quantity: int,
+                          pnl: float, pnl_pct: float, duration_seconds: int,
+                          exit_reason: str, entry_indicators: dict = None,
+                          exit_indicators: dict = None, timestamp: datetime = None):
+        """
+        Log complete trade details for deep analysis.
+
+        Args:
+            trade_id: Trade identifier
+            strategy_id: Strategy identifier
+            symbol: Symbol name
+            entry_price: Entry price
+            exit_price: Exit price
+            quantity: Trade quantity
+            pnl: Profit/Loss
+            pnl_pct: P&L percentage
+            duration_seconds: Trade duration in seconds
+            exit_reason: Reason for exit
+            entry_indicators: Indicator values at entry
+            exit_indicators: Indicator values at exit
+            timestamp: Exit timestamp
+        """
+        # InfluxDB: Write comprehensive trade details
+        self.influx.write_trade_details(
+            strategy_id=strategy_id,
+            symbol=symbol,
+            trade_id=trade_id,
+            action='EXIT',
+            entry_price=entry_price,
+            exit_price=exit_price,
+            quantity=quantity,
+            pnl=pnl,
+            pnl_pct=pnl_pct,
+            duration_seconds=duration_seconds,
+            exit_reason=exit_reason,
+            entry_indicators=entry_indicators,
+            exit_indicators=exit_indicators,
+            timestamp=timestamp
+        )
+
+        log.info(f"Trade complete logged: {trade_id} - P&L: ${pnl:.2f} ({pnl_pct:.2%})")
+
     # ==================== Queries ====================
-    
+
     def get_open_positions(self, strategy_id: str = None) -> List[Dict]:
         """Get all open positions."""
         return self.sqlite.get_open_trades(strategy_id)
