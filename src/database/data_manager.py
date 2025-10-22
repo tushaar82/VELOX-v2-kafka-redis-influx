@@ -335,8 +335,10 @@ class DataManager:
     def log_trade_complete(self, trade_id: str, strategy_id: str, symbol: str,
                           entry_price: float, exit_price: float, quantity: int,
                           pnl: float, pnl_pct: float, duration_seconds: int,
-                          exit_reason: str, entry_indicators: dict = None,
-                          exit_indicators: dict = None, timestamp: datetime = None):
+                          exit_reason: str, max_favorable_excursion: float = None,
+                          max_adverse_excursion: float = None, slippage_pct: float = None,
+                          entry_indicators: dict = None, exit_indicators: dict = None,
+                          timestamp: datetime = None):
         """
         Log complete trade details for deep analysis.
 
@@ -351,6 +353,9 @@ class DataManager:
             pnl_pct: P&L percentage
             duration_seconds: Trade duration in seconds
             exit_reason: Reason for exit
+            max_favorable_excursion: Highest profit reached during trade
+            max_adverse_excursion: Worst drawdown during trade
+            slippage_pct: Total slippage percentage
             entry_indicators: Indicator values at entry
             exit_indicators: Indicator values at exit
             timestamp: Exit timestamp
@@ -368,12 +373,40 @@ class DataManager:
             pnl_pct=pnl_pct,
             duration_seconds=duration_seconds,
             exit_reason=exit_reason,
+            max_favorable_excursion=max_favorable_excursion,
+            max_adverse_excursion=max_adverse_excursion,
+            slippage_pct=slippage_pct,
             entry_indicators=entry_indicators,
             exit_indicators=exit_indicators,
             timestamp=timestamp
         )
 
-        log.info(f"Trade complete logged: {trade_id} - P&L: ${pnl:.2f} ({pnl_pct:.2%})")
+        mfe_str = f"MFE: ${max_favorable_excursion:.2f}" if max_favorable_excursion else "MFE: N/A"
+        mae_str = f"MAE: ${max_adverse_excursion:.2f}" if max_adverse_excursion else "MAE: N/A"
+        log.info(f"Trade complete logged: {trade_id} - P&L: ${pnl:.2f} ({pnl_pct:.2%}) {mfe_str} {mae_str}")
+
+    def log_strategy_health(self, strategy_id: str, strategy_type: str,
+                           health_metrics: dict, timestamp: datetime = None):
+        """
+        Log real-time strategy health metrics.
+
+        Args:
+            strategy_id: Strategy identifier
+            strategy_type: Strategy type/class name
+            health_metrics: Dict containing health metrics
+            timestamp: Timestamp (defaults to now)
+        """
+        # InfluxDB: Write strategy health snapshot
+        self.influx.write_strategy_health(
+            strategy_id=strategy_id,
+            strategy_type=strategy_type,
+            health_metrics=health_metrics,
+            timestamp=timestamp
+        )
+
+        log.debug(f"Strategy health logged: {strategy_id} - "
+                 f"Positions: {health_metrics.get('open_positions_count', 0)}, "
+                 f"P&L: ${health_metrics.get('total_pnl', 0):.2f}")
 
     # ==================== Queries ====================
 

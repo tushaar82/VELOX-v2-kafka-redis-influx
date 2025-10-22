@@ -44,8 +44,16 @@ Measurement: order_execution (NEW - for execution quality)
 - timestamp: nanosecond precision
 
 Measurement: trade_details (NEW - comprehensive trade info)
-- tags: strategy_id, symbol, trade_id, action
+- tags: strategy_id, symbol, trade_id, action, is_winner
 - fields: entry_price, exit_price, quantity, pnl, pnl_pct, duration_seconds, exit_reason
+         max_favorable_excursion, max_adverse_excursion, slippage_pct
+- timestamp: nanosecond precision
+
+Measurement: strategy_health (NEW - real-time strategy monitoring)
+- tags: strategy_id, strategy_type
+- fields: open_positions_count, total_trades_today, win_count, loss_count, win_rate_pct
+         avg_win_pct, avg_loss_pct, profit_factor, total_pnl, avg_trade_duration_minutes
+         signals_generated_today, signals_approved_today, approval_rate_pct, is_active
 - timestamp: nanosecond precision
 """
 
@@ -433,6 +441,9 @@ class InfluxManager:
                            exit_price: float = None, quantity: int = None,
                            pnl: float = None, pnl_pct: float = None,
                            duration_seconds: int = None, exit_reason: str = None,
+                           max_favorable_excursion: float = None,
+                           max_adverse_excursion: float = None,
+                           slippage_pct: float = None,
                            entry_indicators: dict = None, exit_indicators: dict = None,
                            timestamp: datetime = None):
         """
@@ -450,6 +461,9 @@ class InfluxManager:
             pnl_pct: P&L percentage
             duration_seconds: Trade duration in seconds
             exit_reason: Reason for exit
+            max_favorable_excursion: Highest profit during trade
+            max_adverse_excursion: Worst drawdown during trade
+            slippage_pct: Total slippage percentage
             entry_indicators: Indicator values at entry
             exit_indicators: Indicator values at exit
             timestamp: Timestamp (defaults to now)
@@ -458,11 +472,14 @@ class InfluxManager:
             return False
 
         try:
+            is_winner = 'true' if (pnl is not None and pnl > 0) else 'false'
+
             point = Point("trade_details") \
                 .tag("strategy_id", strategy_id) \
                 .tag("symbol", symbol) \
                 .tag("trade_id", trade_id) \
-                .tag("action", action)
+                .tag("action", action) \
+                .tag("is_winner", is_winner)
 
             if entry_price is not None:
                 point.field("entry_price", float(entry_price))
@@ -478,6 +495,12 @@ class InfluxManager:
                 point.field("duration_seconds", int(duration_seconds))
             if exit_reason:
                 point.field("exit_reason", exit_reason)
+            if max_favorable_excursion is not None:
+                point.field("max_favorable_excursion", float(max_favorable_excursion))
+            if max_adverse_excursion is not None:
+                point.field("max_adverse_excursion", float(max_adverse_excursion))
+            if slippage_pct is not None:
+                point.field("slippage_pct", float(slippage_pct))
 
             # Add entry indicators
             if entry_indicators:
@@ -496,6 +519,64 @@ class InfluxManager:
             return True
         except Exception as e:
             log.error(f"InfluxDB write_trade_details error: {e}")
+            return False
+
+    def write_strategy_health(self, strategy_id: str, strategy_type: str,
+                              health_metrics: dict, timestamp: datetime = None):
+        """
+        Write real-time strategy health metrics for monitoring.
+
+        Args:
+            strategy_id: Strategy identifier
+            strategy_type: Strategy type/class name
+            health_metrics: Dict of health metrics
+                Required keys: open_positions_count, total_trades_today,
+                              win_count, loss_count, total_pnl, is_active
+                Optional keys: win_rate_pct, avg_win_pct, avg_loss_pct,
+                              profit_factor, avg_trade_duration_minutes,
+                              signals_generated_today, signals_approved_today,
+                              approval_rate_pct
+            timestamp: Timestamp (defaults to now)
+        """
+        if not self.is_connected():
+            return False
+
+        try:
+            point = Point("strategy_health") \
+                .tag("strategy_id", strategy_id) \
+                .tag("strategy_type", strategy_type)
+
+            # Required fields
+            point.field("open_positions_count", int(health_metrics.get('open_positions_count', 0)))
+            point.field("total_trades_today", int(health_metrics.get('total_trades_today', 0)))
+            point.field("win_count", int(health_metrics.get('win_count', 0)))
+            point.field("loss_count", int(health_metrics.get('loss_count', 0)))
+            point.field("total_pnl", float(health_metrics.get('total_pnl', 0.0)))
+            point.field("is_active", bool(health_metrics.get('is_active', True)))
+
+            # Optional calculated fields
+            if 'win_rate_pct' in health_metrics:
+                point.field("win_rate_pct", float(health_metrics['win_rate_pct']))
+            if 'avg_win_pct' in health_metrics:
+                point.field("avg_win_pct", float(health_metrics['avg_win_pct']))
+            if 'avg_loss_pct' in health_metrics:
+                point.field("avg_loss_pct", float(health_metrics['avg_loss_pct']))
+            if 'profit_factor' in health_metrics:
+                point.field("profit_factor", float(health_metrics['profit_factor']))
+            if 'avg_trade_duration_minutes' in health_metrics:
+                point.field("avg_trade_duration_minutes", float(health_metrics['avg_trade_duration_minutes']))
+            if 'signals_generated_today' in health_metrics:
+                point.field("signals_generated_today", int(health_metrics['signals_generated_today']))
+            if 'signals_approved_today' in health_metrics:
+                point.field("signals_approved_today", int(health_metrics['signals_approved_today']))
+            if 'approval_rate_pct' in health_metrics:
+                point.field("approval_rate_pct", float(health_metrics['approval_rate_pct']))
+
+            point.time(timestamp or datetime.utcnow(), WritePrecision.NS)
+            self.write_api.write(bucket=self.bucket, record=point)
+            return True
+        except Exception as e:
+            log.error(f"InfluxDB write_strategy_health error: {e}")
             return False
 
     # ==================== Query Operations ====================
