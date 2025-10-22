@@ -32,6 +32,21 @@ Measurement: strategy_metrics
 - tags: strategy_id
 - fields: positions_count, signals_count, pnl, win_rate
 - timestamp: nanosecond precision
+
+Measurement: signals (NEW - for trade verification)
+- tags: strategy_id, symbol, action, status (approved/rejected)
+- fields: price, quantity, reason, rejection_reason, all indicator values
+- timestamp: nanosecond precision
+
+Measurement: order_execution (NEW - for execution quality)
+- tags: strategy_id, symbol, action, order_id
+- fields: requested_price, filled_price, slippage, slippage_pct, fill_time_ms
+- timestamp: nanosecond precision
+
+Measurement: trade_details (NEW - comprehensive trade info)
+- tags: strategy_id, symbol, trade_id, action
+- fields: entry_price, exit_price, quantity, pnl, pnl_pct, duration_seconds, exit_reason
+- timestamp: nanosecond precision
 """
 
 from datetime import datetime
@@ -305,20 +320,184 @@ class InfluxManager:
     def write_batch(self, points: list):
         """
         Batch write for performance.
-        
+
         Args:
             points: List of Point objects
         """
         if not self.is_connected():
             return False
-        
+
         try:
             self.write_api.write(bucket=self.bucket, record=points)
             return True
         except Exception as e:
             log.error(f"InfluxDB write_batch error: {e}")
             return False
-    
+
+    def write_signal(self, strategy_id: str, symbol: str, action: str,
+                    price: float, quantity: int, reason: str,
+                    status: str, rejection_reason: str = None,
+                    indicators: dict = None, timestamp: datetime = None):
+        """
+        Write signal (approved or rejected) to InfluxDB for trade verification.
+
+        Args:
+            strategy_id: Strategy identifier
+            symbol: Symbol name
+            action: Signal action (BUY/SELL)
+            price: Signal price
+            quantity: Signal quantity
+            reason: Signal generation reason
+            status: Signal status (approved/rejected)
+            rejection_reason: Reason for rejection (if rejected)
+            indicators: Dict of indicator values at signal time
+            timestamp: Timestamp (defaults to now)
+        """
+        if not self.is_connected():
+            return False
+
+        try:
+            point = Point("signals") \
+                .tag("strategy_id", strategy_id) \
+                .tag("symbol", symbol) \
+                .tag("action", action) \
+                .tag("status", status) \
+                .field("price", float(price)) \
+                .field("quantity", int(quantity)) \
+                .field("reason", reason)
+
+            if rejection_reason:
+                point.field("rejection_reason", rejection_reason)
+
+            # Add all indicator values as fields for detailed analysis
+            if indicators:
+                for key, value in indicators.items():
+                    if isinstance(value, (int, float)):
+                        point.field(f"ind_{key}", float(value))
+                    elif isinstance(value, str):
+                        point.field(f"ind_{key}", value)
+
+            point.time(timestamp or datetime.utcnow(), WritePrecision.NS)
+            self.write_api.write(bucket=self.bucket, record=point)
+            return True
+        except Exception as e:
+            log.error(f"InfluxDB write_signal error: {e}")
+            return False
+
+    def write_order_execution(self, strategy_id: str, symbol: str, action: str,
+                             order_id: str, requested_price: float,
+                             filled_price: float, slippage: float,
+                             slippage_pct: float, fill_time_ms: float = None,
+                             timestamp: datetime = None):
+        """
+        Write order execution details for execution quality analysis.
+
+        Args:
+            strategy_id: Strategy identifier
+            symbol: Symbol name
+            action: Order action (BUY/SELL)
+            order_id: Order identifier
+            requested_price: Requested execution price
+            filled_price: Actual filled price
+            slippage: Absolute slippage
+            slippage_pct: Slippage percentage
+            fill_time_ms: Time to fill in milliseconds
+            timestamp: Timestamp (defaults to now)
+        """
+        if not self.is_connected():
+            return False
+
+        try:
+            point = Point("order_execution") \
+                .tag("strategy_id", strategy_id) \
+                .tag("symbol", symbol) \
+                .tag("action", action) \
+                .tag("order_id", order_id) \
+                .field("requested_price", float(requested_price)) \
+                .field("filled_price", float(filled_price)) \
+                .field("slippage", float(slippage)) \
+                .field("slippage_pct", float(slippage_pct))
+
+            if fill_time_ms is not None:
+                point.field("fill_time_ms", float(fill_time_ms))
+
+            point.time(timestamp or datetime.utcnow(), WritePrecision.NS)
+            self.write_api.write(bucket=self.bucket, record=point)
+            return True
+        except Exception as e:
+            log.error(f"InfluxDB write_order_execution error: {e}")
+            return False
+
+    def write_trade_details(self, strategy_id: str, symbol: str, trade_id: str,
+                           action: str, entry_price: float = None,
+                           exit_price: float = None, quantity: int = None,
+                           pnl: float = None, pnl_pct: float = None,
+                           duration_seconds: int = None, exit_reason: str = None,
+                           entry_indicators: dict = None, exit_indicators: dict = None,
+                           timestamp: datetime = None):
+        """
+        Write comprehensive trade details for deep analysis.
+
+        Args:
+            strategy_id: Strategy identifier
+            symbol: Symbol name
+            trade_id: Trade identifier
+            action: Trade action (ENTRY/EXIT)
+            entry_price: Entry price
+            exit_price: Exit price
+            quantity: Trade quantity
+            pnl: Profit/Loss
+            pnl_pct: P&L percentage
+            duration_seconds: Trade duration in seconds
+            exit_reason: Reason for exit
+            entry_indicators: Indicator values at entry
+            exit_indicators: Indicator values at exit
+            timestamp: Timestamp (defaults to now)
+        """
+        if not self.is_connected():
+            return False
+
+        try:
+            point = Point("trade_details") \
+                .tag("strategy_id", strategy_id) \
+                .tag("symbol", symbol) \
+                .tag("trade_id", trade_id) \
+                .tag("action", action)
+
+            if entry_price is not None:
+                point.field("entry_price", float(entry_price))
+            if exit_price is not None:
+                point.field("exit_price", float(exit_price))
+            if quantity is not None:
+                point.field("quantity", int(quantity))
+            if pnl is not None:
+                point.field("pnl", float(pnl))
+            if pnl_pct is not None:
+                point.field("pnl_pct", float(pnl_pct))
+            if duration_seconds is not None:
+                point.field("duration_seconds", int(duration_seconds))
+            if exit_reason:
+                point.field("exit_reason", exit_reason)
+
+            # Add entry indicators
+            if entry_indicators:
+                for key, value in entry_indicators.items():
+                    if isinstance(value, (int, float)):
+                        point.field(f"entry_{key}", float(value))
+
+            # Add exit indicators
+            if exit_indicators:
+                for key, value in exit_indicators.items():
+                    if isinstance(value, (int, float)):
+                        point.field(f"exit_{key}", float(value))
+
+            point.time(timestamp or datetime.utcnow(), WritePrecision.NS)
+            self.write_api.write(bucket=self.bucket, record=point)
+            return True
+        except Exception as e:
+            log.error(f"InfluxDB write_trade_details error: {e}")
+            return False
+
     # ==================== Query Operations ====================
     
     def query_tick_range(self, symbol: str, start: str, end: str = None):

@@ -349,15 +349,48 @@ class VeloxSystem:
                     # Validate with risk manager
                     current_positions = self.strategy_manager.get_all_positions()
                     result = self.risk_manager.validate_signal(signal, current_positions, {})
-                    
+
+                    # Get indicator values from strategy for logging
+                    strategy = self.strategy_manager.get_strategy(signal['strategy_id'])
+                    indicator_values = None
+                    if strategy and hasattr(strategy, 'get_current_indicators'):
+                        indicator_values = strategy.get_current_indicators(signal['symbol'])
+
+                    # Log signal (approved or rejected) for trade verification
+                    if self.db_manager:
+                        self.db_manager.log_signal(
+                            strategy_id=signal['strategy_id'],
+                            symbol=signal['symbol'],
+                            action=signal['action'],
+                            price=signal['price'],
+                            quantity=signal['quantity'],
+                            reason=signal.get('reason', 'No reason provided'),
+                            approved=result.approved,
+                            rejection_reason=None if result.approved else result.reason,
+                            indicators=indicator_values,
+                            timestamp=datetime.fromisoformat(signal['timestamp'])
+                        )
+
                     if result.approved:
                         stats['signals_approved'] += 1
-                        
+
                         # Execute order
                         order = self.order_manager.execute_signal(signal)
-                        
+
                         if order and order['status'] == 'FILLED':
                             stats['orders_executed'] += 1
+
+                            # Log order execution quality
+                            if self.db_manager:
+                                self.db_manager.log_order_execution(
+                                    strategy_id=signal['strategy_id'],
+                                    symbol=signal['symbol'],
+                                    action=signal['action'],
+                                    order_id=order['order_id'],
+                                    requested_price=signal['price'],
+                                    filled_price=order['filled_price'],
+                                    timestamp=order['fill_timestamp']
+                                )
                             
                             # Update position
                             self.position_manager.update_position(
