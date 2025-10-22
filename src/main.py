@@ -17,7 +17,7 @@ if str(src_path) not in sys.path:
 from utils.logging_config import initialize_logging, get_logger
 from utils.config_loader import ConfigLoader
 from adapters.broker.simulated import SimulatedBrokerAdapter
-from adapters.strategy.rsi_momentum import RSIMomentumStrategy
+from adapters.strategy.factory import StrategyFactory
 from adapters.data.historical import HistoricalDataManager
 from core.market_simulator import MarketSimulator
 from core.multi_strategy_manager import MultiStrategyManager
@@ -100,7 +100,8 @@ class VeloxSystem:
         self.candle_aggregator = None
         self.warmup_manager = None
         
-        # Strategy manager
+        # Strategy factory and manager
+        self.strategy_factory = StrategyFactory()
         self.strategy_manager = MultiStrategyManager()
         self._load_strategies()
         self.logger.info("Strategy manager initialized")
@@ -110,21 +111,30 @@ class VeloxSystem:
     def _load_strategies(self):
         """Load strategies from configuration."""
         enabled_strategies = self.config_loader.get_enabled_strategies()
-        
+
+        if not enabled_strategies:
+            self.logger.warning("No enabled strategies found in configuration!")
+            return
+
         for strategy_config in enabled_strategies:
             strategy_id = strategy_config['id']
             strategy_class = strategy_config['class']
             symbols = strategy_config['symbols']
             params = strategy_config['params']
-            
-            # Currently only RSI Momentum is implemented
-            if strategy_class == 'RSIMomentumStrategy':
-                strategy = RSIMomentumStrategy(strategy_id, symbols, params)
-                strategy.initialize()
+
+            # Use strategy factory to create strategy instance
+            strategy = self.strategy_factory.create_strategy(
+                strategy_class=strategy_class,
+                strategy_id=strategy_id,
+                symbols=symbols,
+                params=params
+            )
+
+            if strategy:
                 self.strategy_manager.add_strategy(strategy)
-                self.logger.info(f"Loaded strategy: {strategy_id} for {symbols}")
+                self.logger.info(f"✓ Loaded strategy: {strategy_id} ({strategy_class}) for {symbols}")
             else:
-                self.logger.warning(f"Unknown strategy class: {strategy_class}")
+                self.logger.error(f"✗ Failed to load strategy: {strategy_id} ({strategy_class})")
     
     def run_simulation(self, date: str, speed: float = 100.0):
         """

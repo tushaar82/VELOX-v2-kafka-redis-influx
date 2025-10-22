@@ -400,6 +400,186 @@ class TechnicalIndicators:
         """Get number of prices in history."""
         return len(self.close_prices)
 
+    def calculate_vwap(self) -> Optional[float]:
+        """
+        Calculate VWAP (Volume Weighted Average Price).
+
+        VWAP is calculated from the start of the trading session.
+        For intraday strategies, this provides the average price weighted by volume.
+
+        Returns:
+            VWAP value or None if insufficient data
+        """
+        if len(self.close_prices) == 0 or len(self.volumes) == 0:
+            return None
+
+        # Calculate typical price (H+L+C)/3
+        typical_prices = []
+        for i in range(len(self.close_prices)):
+            typical_price = (
+                self.high_prices[i] +
+                self.low_prices[i] +
+                self.close_prices[i]
+            ) / 3.0
+            typical_prices.append(typical_price)
+
+        typical_prices = np.array(typical_prices)
+        volumes = np.array(list(self.volumes))
+
+        # VWAP = sum(typical_price * volume) / sum(volume)
+        if np.sum(volumes) == 0:
+            return None
+
+        vwap = np.sum(typical_prices * volumes) / np.sum(volumes)
+        return vwap
+
+    def calculate_adx(self, period: int = 14) -> Optional[Dict]:
+        """
+        Calculate ADX (Average Directional Index) and DMI.
+
+        ADX measures trend strength (0-100):
+        - < 20: Weak/no trend
+        - 20-25: Possible trend
+        - 25-50: Strong trend
+        - 50-75: Very strong trend
+        - > 75: Extremely strong trend
+
+        Args:
+            period: ADX period (default 14)
+
+        Returns:
+            Dictionary with 'adx', 'plus_di', 'minus_di' or None
+        """
+        if len(self.close_prices) < period * 2:
+            return None
+
+        highs = np.array(list(self.high_prices))
+        lows = np.array(list(self.low_prices))
+        closes = np.array(list(self.close_prices))
+
+        # Calculate +DM and -DM
+        plus_dm = []
+        minus_dm = []
+
+        for i in range(1, len(highs)):
+            high_diff = highs[i] - highs[i-1]
+            low_diff = lows[i-1] - lows[i]
+
+            if high_diff > low_diff and high_diff > 0:
+                plus_dm.append(high_diff)
+            else:
+                plus_dm.append(0)
+
+            if low_diff > high_diff and low_diff > 0:
+                minus_dm.append(low_diff)
+            else:
+                minus_dm.append(0)
+
+        plus_dm = np.array(plus_dm)
+        minus_dm = np.array(minus_dm)
+
+        # Calculate True Range
+        tr_list = []
+        for i in range(1, len(closes)):
+            h_l = highs[i] - lows[i]
+            h_pc = abs(highs[i] - closes[i-1])
+            l_pc = abs(lows[i] - closes[i-1])
+            tr = max(h_l, h_pc, l_pc)
+            tr_list.append(tr)
+
+        tr = np.array(tr_list)
+
+        # Calculate smoothed values
+        def smooth(values, period):
+            smoothed = []
+            first = np.sum(values[:period])
+            smoothed.append(first)
+            for i in range(period, len(values)):
+                smoothed.append(smoothed[-1] - smoothed[-1]/period + values[i])
+            return np.array(smoothed)
+
+        if len(tr) < period or len(plus_dm) < period:
+            return None
+
+        smoothed_tr = smooth(tr, period)
+        smoothed_plus_dm = smooth(plus_dm, period)
+        smoothed_minus_dm = smooth(minus_dm, period)
+
+        # Calculate +DI and -DI
+        with np.errstate(divide='ignore', invalid='ignore'):
+            plus_di = 100 * smoothed_plus_dm / smoothed_tr
+            minus_di = 100 * smoothed_minus_dm / smoothed_tr
+
+            # Calculate DX
+            di_sum = plus_di + minus_di
+            di_diff = np.abs(plus_di - minus_di)
+            dx = np.where(di_sum != 0, 100 * di_diff / di_sum, 0)
+
+            # Calculate ADX (smoothed DX)
+            if len(dx) < period:
+                adx = np.mean(dx)
+            else:
+                adx = np.mean(dx[-period:])
+
+        # Handle NaN/Inf values
+        adx = float(adx) if not (np.isnan(adx) or np.isinf(adx)) else 0.0
+        plus_di_val = float(plus_di[-1]) if len(plus_di) > 0 and not (np.isnan(plus_di[-1]) or np.isinf(plus_di[-1])) else 0.0
+        minus_di_val = float(minus_di[-1]) if len(minus_di) > 0 and not (np.isnan(minus_di[-1]) or np.isinf(minus_di[-1])) else 0.0
+
+        return {
+            'adx': adx,
+            'plus_di': plus_di_val,
+            'minus_di': minus_di_val
+        }
+
+    def calculate_stochastic(self, k_period: int = 14, d_period: int = 3) -> Optional[Dict]:
+        """
+        Calculate Stochastic Oscillator (%K and %D).
+
+        Stochastic oscillator compares current close to the recent range:
+        - > 80: Overbought
+        - < 20: Oversold
+
+        Args:
+            k_period: %K period (default 14)
+            d_period: %D smoothing period (default 3)
+
+        Returns:
+            Dictionary with 'k' and 'd' or None
+        """
+        if len(self.close_prices) < k_period + d_period:
+            return None
+
+        closes = np.array(list(self.close_prices))
+        highs = np.array(list(self.high_prices))
+        lows = np.array(list(self.low_prices))
+
+        # Calculate %K
+        k_values = []
+        for i in range(k_period - 1, len(closes)):
+            period_high = np.max(highs[i-k_period+1:i+1])
+            period_low = np.min(lows[i-k_period+1:i+1])
+
+            if period_high == period_low:
+                k = 50.0  # Neutral if no range
+            else:
+                k = 100 * (closes[i] - period_low) / (period_high - period_low)
+
+            k_values.append(k)
+
+        k_values = np.array(k_values)
+
+        # Calculate %D (SMA of %K)
+        if len(k_values) < d_period:
+            d = np.mean(k_values)
+        else:
+            d = np.mean(k_values[-d_period:])
+
+        return {
+            'k': float(k_values[-1]),
+            'd': float(d)
+        }
+
 
 class IndicatorManager:
     """Manages indicators for multiple symbols."""
