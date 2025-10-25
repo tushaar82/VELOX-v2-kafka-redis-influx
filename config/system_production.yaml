@@ -1,0 +1,95 @@
+# VELOX Production Configuration
+# ⚠️ PRODUCTION SETTINGS - Use with REAL broker
+
+system:
+  broker:
+    type: simulated  # Change to: zerodha | upstox for live trading
+    capital: 100000  # Actual trading capital
+    slippage_pct: 0.001  # 0.1% slippage
+
+  risk:
+    # CRITICAL SAFETY LIMITS
+    # Emergency exit triggered when these limits are breached
+    # All positions will be closed automatically
+
+    # Position Limits
+    max_position_size: 5000  # Maximum Rs. 5000 per position (CONSERVATIVE)
+    max_positions_per_strategy: 2  # Max 2 positions per strategy
+    max_total_positions: 3  # Max 3 total positions (STRICT LIMIT)
+
+    # Daily Loss Limits (AUTO EXIT ALL POSITIONS)
+    max_daily_loss: 2000  # Rs. 2000 daily loss limit
+    max_daily_loss_pct: 2.0  # 2% of capital limit
+    initial_capital: 100000  # Your actual capital
+
+    # FIXED LOT SIZE (Mandatory for Production)
+    fixed_lot_size: 1  # Trade only 1 share per order
+    # ⚠️ Set to null to allow dynamic lot sizes (NOT RECOMMENDED)
+
+    # Order Safety
+    enable_deduplication: true  # MUST BE TRUE - Prevents duplicate orders
+    dedup_window_seconds: 10  # 10 seconds duplicate prevention window
+
+  kafka:
+    bootstrap_servers: localhost:9092
+    consumer_group: velox-prod
+    topics:
+      market_ticks: market.ticks.prod
+      signals: signals.prod
+      orders: orders.prod
+      order_fills: order_fills.prod
+      positions: positions.prod
+
+  logging:
+    level: INFO  # Use DEBUG for troubleshooting
+    log_dir: logs/production
+    file_retention_days: 90  # Keep logs for 3 months
+
+  simulation:
+    default_speed: 1.0  # Real-time for production
+    ticks_per_candle: 10
+
+  dashboard:
+    host: 0.0.0.0
+    port: 5000
+    update_interval_ms: 500  # More frequent updates
+
+# Warmup Configuration
+warmup:
+  enabled: true
+  min_candles: 500  # More historical data for production
+  auto_calculate: true
+
+# Candle Aggregation Configuration
+candle_aggregation:
+  enabled: true
+  default_timeframe: '1min'
+  supported_timeframes:
+    - '1min'
+    - '3min'
+    - '5min'
+    - '15min'
+    - '30min'
+    - '1hour'
+  max_history: 1000  # Keep more history in production
+
+# Database Logging Configuration
+database_logging:
+  log_all_signals: true  # Log everything for audit trail
+  log_all_ticks: false  # Too expensive for production
+  log_indicators: true  # Log indicator values
+  log_candles: true  # Log all candles
+  position_snapshot_interval: 50  # More frequent snapshots
+  indicator_snapshot_interval: 25  # More frequent snapshots
+  batch_size: 100  # Larger batches for efficiency
+
+# Production Safety Checklist
+# ✓ fixed_lot_size is set (not null)
+# ✓ max_daily_loss is set appropriately
+# ✓ enable_deduplication is true
+# ✓ max_total_positions is conservative
+# ✓ Broker type is configured correctly
+# ✓ Capital matches actual trading capital
+# ✓ Dashboard is accessible for monitoring
+# ✓ Logs are being saved
+# ✓ Database connections are verified
