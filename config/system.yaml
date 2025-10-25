@@ -5,11 +5,22 @@ system:
     slippage_pct: 0.001
   
   risk:
-    max_position_size: 10000
-    max_positions_per_strategy: 3
-    max_total_positions: 5
-    max_daily_loss: 5000
-    max_daily_loss_pct: 0.05
+    # Position Limits
+    max_position_size: 10000  # Maximum value per position (Rs.)
+    max_positions_per_strategy: 3  # Max positions per strategy
+    max_total_positions: 5  # Max total positions across all strategies
+
+    # Loss Limits (CRITICAL)
+    max_daily_loss: 5000  # Maximum daily loss (Rs.) - EMERGENCY EXIT TRIGGERED
+    max_daily_loss_pct: 5.0  # Maximum daily loss (%) - EMERGENCY EXIT TRIGGERED
+    initial_capital: 100000  # Initial trading capital for % calculation
+
+    # Fixed Lot Size (Production Safety)
+    fixed_lot_size: 1  # Fixed quantity per trade (null to disable)
+
+    # Order Deduplication
+    enable_deduplication: true  # Prevent duplicate orders
+    dedup_window_seconds: 5  # Time window to prevent duplicates
   
   kafka:
     bootstrap_servers: localhost:9092
